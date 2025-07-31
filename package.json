@@ -1,0 +1,66 @@
+{
+  "name": "onemcp",
+  "displayName": "OneMCP Orchestrator",
+  "description": "A dynamic orchestrator for MCP Servers - manage multiple MCP servers with Docker integration.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.102.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "onemcp.installOrchestrator",
+        "title": "OneMCP: Install Orchestrator"
+      },
+      {
+        "command": "onemcp.startOrchestrator",
+        "title": "OneMCP: Start Orchestrator"
+      },
+      {
+        "command": "onemcp.stopOrchestrator",
+        "title": "OneMCP: Stop Orchestrator"
+      },
+      {
+        "command": "onemcp.orchestratorStatus",
+        "title": "OneMCP: Check Status"
+      },
+      {
+        "command": "onemcp.openLogs",
+        "title": "OneMCP: Open Logs"
+      },
+      {
+        "command": "onemcp.openDashboard",
+        "title": "OneMCP: Open Dashboard"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "watch:esbuild": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.102.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.8",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  }
+}

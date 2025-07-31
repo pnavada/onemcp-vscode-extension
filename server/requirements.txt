@@ -1,0 +1,10 @@
+# Copyright(c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Core dependencies
+mcp>=1.0.0
+anyio>=3.0.0
+fastmcp>=0.1.0
+
+# Development dependencies (install with: pip install -r requirements.txt -r requirements-dev.txt)
+# Or use: pip install -e ".[dev]"
