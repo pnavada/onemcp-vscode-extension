@@ -6,7 +6,6 @@ A VS Code extension that provides a dynamic orchestrator for Model Context Proto
 
 - **Automatic MCP Server Management**: Dynamically spin off and manage multiple MCP servers
 - **Docker Integration**: Seamless Docker-based server deployment and management
-- **Cross-Platform Support**: Works on Windows, macOS, and Linux
 
 ## Requirements
 
