@@ -1,71 +1,61 @@
-# onemcp README
+# OneMCP Orchestrator
 
-This is the README for your extension "onemcp". After writing up a brief description, we recommend including the following sections.
+A VS Code extension that provides a dynamic orchestrator for Model Context Protocol (MCP) servers with Docker integration.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- **Automatic MCP Server Management**: Dynamically spin off and manage multiple MCP servers
+- **Docker Integration**: Seamless Docker-based server deployment and management
+- **Cross-Platform Support**: Works on Windows, macOS, and Linux
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- **Python 3.8+**: Required for running the orchestrator
+- **Docker**: Required for MCP server containerization
+- **VS Code 1.102.0+**: Minimum VS Code version
+
+## Commands
+
+This extension contributes the following commands:
+
+- `OneMCP: Install Orchestrator` - Install the MCP orchestrator on your system
+- `OneMCP: Start Orchestrator` - Start the orchestrator service
+- `OneMCP: Stop Orchestrator` - Stop the orchestrator service
+- `OneMCP: Check Status` - Check orchestrator and system status
+- `OneMCP: Open Logs` - View orchestrator logs
+- `OneMCP: Open Dashboard` - Open the orchestrator web dashboard
+
+## Getting Started
+
+1. Install the extension
+2. Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
+3. Run `OneMCP: Install Orchestrator` to install the orchestrator
+4. Run `OneMCP: Start Orchestrator` to start managing MCP servers
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+Currently no configurable settings. The orchestrator runs on `localhost:8000` by default.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- First startup may take some time while dependencies are installed
+- Requires internet connection for Docker image pulls
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.0.1
 
-### 1.0.0
+Initial release of OneMCP Orchestrator extension:
+- Basic orchestrator management
+- Docker integration
+- VS Code command integration
 
-Initial release of ...
+## Support
 
-### 1.0.1
+For issues and feature requests, please visit the [GitHub repository](https://github.com/pnavada/onemcp-vscode-extension).
 
-Fixed issue #.
+## License
 
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This extension is licensed under the MIT License. See LICENSE file for details.

@@ -2,12 +2,23 @@ from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.prompts import base
 from mcp.types import SamplingMessage, TextContent
 import os
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 server = FastMCP(
     name="OneMCP Orchestrator",
     description="Dynamic MCP Orchestrator for managing tools and resources",
-    port=8080
 )
+
+# Add a health check endpoint using FastMCP's custom_route decorator
+@server.custom_route("/health", methods=["GET"])
+async def health_check(request: Request):
+    """Health check endpoint for monitoring"""
+    return JSONResponse(content={
+        "status": "healthy",
+        "service": "OneMCP Orchestrator",
+        "tools_available": True
+    })
 
 @server.tool()
 async def plan(query: str, ctx: Context) -> list[base.Message]:

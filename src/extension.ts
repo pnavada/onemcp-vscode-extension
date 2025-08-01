@@ -18,9 +18,78 @@ interface MCPServerManager {
 	isDockerInstalled(): Promise<boolean>;
 }
 
+class OneMCPServerDefinitionProvider implements vscode.McpServerDefinitionProvider {
+	private mcpManager: SystemMCPOrchestratorManager;
+	private _onDidChangeMcpServerDefinitions = new vscode.EventEmitter<void>();
+	public readonly onDidChangeMcpServerDefinitions = this._onDidChangeMcpServerDefinitions.event;
+
+	constructor(mcpManager: SystemMCPOrchestratorManager) {
+		this.mcpManager = mcpManager;
+	}
+
+	async provideMcpServerDefinitions(token: vscode.CancellationToken): Promise<vscode.McpHttpServerDefinition[]> {
+		// Provide the server definition if it's installed (even if not running)
+		const isInstalled = await this.mcpManager.isInstalled();
+		const isRunning = await this.mcpManager.isRunning();
+
+		console.log(`MCP Provider: isInstalled=${isInstalled}, isRunning=${isRunning}`);
+
+		if (!isInstalled) {
+			console.log('MCP Provider: Not providing server definition - not installed');
+			return [];
+		}
+
+		console.log('MCP Provider: Providing OneMCP Orchestrator server definition');
+
+		// Create the server definition
+		const serverDefinition = new vscode.McpHttpServerDefinition(
+			"OneMCP Orchestrator",
+			vscode.Uri.parse("http://localhost:8000/mcp"),
+			{}, // headers
+			"1.0" // version
+		);
+
+		console.log('MCP Provider: Created server definition:', {
+			label: serverDefinition.label,
+			uri: serverDefinition.uri.toString(),
+			version: serverDefinition.version
+		});
+
+		return [serverDefinition];
+	}
+
+	// Resolve method called when VS Code needs to start the MCP server
+	async resolveMcpServerDefinition(
+		server: vscode.McpHttpServerDefinition, 
+		token: vscode.CancellationToken
+	): Promise<vscode.McpHttpServerDefinition> {
+		console.log('MCP Provider: Resolving server definition for:', server.label);
+		
+		// Ensure the orchestrator is running before resolving
+		const isRunning = await this.mcpManager.isRunning();
+		if (!isRunning) {
+			console.log('MCP Provider: Starting orchestrator for resolution');
+			await this.mcpManager.start();
+		}
+		
+		console.log('MCP Provider: Server resolved successfully');
+		return server;
+	}
+
+	// Method to notify VS Code that server definitions have changed
+	public refresh(): void {
+		this._onDidChangeMcpServerDefinitions.fire();
+	}
+
+	// Dispose method to clean up the event emitter
+	public dispose(): void {
+		this._onDidChangeMcpServerDefinitions.dispose();
+	}
+}
+
 class SystemMCPOrchestratorManager implements MCPServerManager {
 	private readonly serviceName = 'onemcp-orchestrator';
-	private readonly port = 8080;
+	private readonly port = 8000;
 	private readonly serverUrl = `http://localhost:${this.port}`;
 	private readonly installPath = path.join(os.homedir(), '.onemcp');
 	private readonly pidFile = path.join(this.installPath, 'orchestrator.pid');
@@ -29,6 +98,7 @@ class SystemMCPOrchestratorManager implements MCPServerManager {
 
 	constructor(extensionPath: string) {
 		this.extensionPath = extensionPath;
+		// console.log(this.extensionPath);
 	}
 
 	async isPythonInstalled(): Promise<boolean> {
@@ -57,8 +127,21 @@ class SystemMCPOrchestratorManager implements MCPServerManager {
 	}
 
 	async isInstalled(): Promise<boolean> {
-		const orchestratorScript = path.join(this.installPath, 'mcp_orchestrator.py');
+		const orchestratorScript = path.join(this.installPath, 'orchestration\\orchestration.py');
+		// console.log(orchestratorScript)
 		const requirementsFile = path.join(this.installPath, 'requirements.txt');
+		// console.log(requirementsFile);
+		if (fs.existsSync(requirementsFile)) {
+			const pythonCmd = await this.getPythonCommand();
+			try {
+				execSync(`${pythonCmd} -m pip install -r "${requirementsFile}"`, { 
+					cwd: this.installPath,
+					stdio: 'pipe'
+				});
+			} catch (error) {
+				throw new Error(`Failed to install Python dependencies: ${error}`);
+			}
+		}
 		return fs.existsSync(orchestratorScript) && fs.existsSync(requirementsFile);
 	}
 
@@ -69,13 +152,13 @@ class SystemMCPOrchestratorManager implements MCPServerManager {
 		}
 
 		// Copy MCP orchestrator code from extension bundle
-		const bundledServerPath = path.join(this.extensionPath, 'server');
+		const bundledServerPath = path.join(this.extensionPath, 'onemcp');
 		if (fs.existsSync(bundledServerPath)) {
 			// Copy entire server directory
 			await this.copyDirectory(bundledServerPath, this.installPath);
 		} else {
-			// Create a basic MCP orchestrator (fallback if no bundled server)
-			await this.createBasicOrchestrator();
+			vscode.window.showErrorMessage(`Failed to install OneMCP Orchestrator`);	
+			throw new Error('OneMCP orchestrator server not found in extension. Cannot install.');
 		}
 
 		// Install Python dependencies
@@ -88,7 +171,6 @@ class SystemMCPOrchestratorManager implements MCPServerManager {
 					stdio: 'pipe'
 				});
 			} catch (error) {
-				vscode.window.showErrorMessage(`Failed to install Python dependencies: ${error}`);	
 				throw new Error(`Failed to install Python dependencies: ${error}`);
 			}
 		}
@@ -115,101 +197,20 @@ class SystemMCPOrchestratorManager implements MCPServerManager {
 		}
 	}
 
-	private async createBasicOrchestrator(): Promise<void> {
-		// Create requirements.txt
-		const requirements = `fastapi==0.104.1
-uvicorn==0.24.0
-docker==6.1.3
-asyncio-mqtt==0.13.0
-httpx==0.25.2
-`;
-		fs.writeFileSync(path.join(this.installPath, 'requirements.txt'), requirements);
-
-		// Create the MCP orchestrator script
-		const orchestratorScript = `#!/usr/bin/env python3
-"""
-OneMCP MCP Server - Minimal FastAPI MCP Server with Health Check
-"""
-import sys
-import os
-import logging
-from fastapi import FastAPI, HTTPException, Request
-import uvicorn
-
-# Configure logging
-logging.basicConfig(
-	level=logging.INFO,
-	format='%(asctime)s - %(levelname)s - %(message)s',
-	handlers=[
-		logging.FileHandler('${this.logFile.replace(/\\/g, '\\\\')}'),
-		logging.StreamHandler()
-	]
-)
-
-logger = logging.getLogger(__name__)
-
-app = FastAPI(
-	title="OneMCP MCP Server",
-	description="Minimal MCP Server API",
-	version="1.0.0"
-)
-
-@app.get("/health")
-async def health_check():
-	return {"status": "healthy", "service": "onemcp-mcp-server"}
-
-@app.post("/mcp")
-async def mcp_endpoint(request: Request):
-	try:
-		data = await request.json()
-	except Exception:
-		raise HTTPException(status_code=400, detail="Invalid JSON")
-	# Minimal MCP protocol echo
-	return {
-		"jsonrpc": "2.0",
-		"id": data.get("id"),
-		"result": {"message": "MCP server received request", "request": data}
-	}
-
-if __name__ == '__main__':
-	# Write PID file
-	with open('${this.pidFile.replace(/\\/g, '\\\\')}', 'w') as f:
-		f.write(str(os.getpid()))
-	logger.info(f"Starting OneMCP MCP Server on port ${this.port}")
-	try:
-		uvicorn.run(
-			app,
-			host="localhost",
-			port=${this.port},
-			log_level="info"
-		)
-	finally:
-		# Clean up PID file
-		if os.path.exists('${this.pidFile.replace(/\\/g, '\\\\')}'):
-			os.remove('${this.pidFile.replace(/\\/g, '\\\\')}')
-`;
-
-		const orchestratorPath = path.join(this.installPath, 'mcp_orchestrator.py');
-		fs.writeFileSync(orchestratorPath, orchestratorScript);
-
-		// Make script executable on Unix-like systems
-		if (process.platform !== 'win32') {
-			execSync(`chmod +x "${orchestratorPath}"`);
-		}
-	}
-
 	async isRunning(): Promise<boolean> {
 		try {
 			// Check if PID file exists and process is running
 			if (fs.existsSync(this.pidFile)) {
 				const pid = fs.readFileSync(this.pidFile, 'utf8').trim();
 				if (process.platform === 'win32') {
+					// console.log("Checking Windows PID:", pid);
 					execSync(`tasklist /FI "PID eq ${pid}"`, { stdio: 'ignore' });
 				} else {
 					execSync(`kill -0 ${pid}`, { stdio: 'ignore' });
 				}
 				
-				return true;
+				// Process is running, now do a health check via HTTP
+				return await this.healthCheck();
 			}
 			return false;
 		} catch {
@@ -222,32 +223,44 @@ if __name__ == '__main__':
 	}
 
 	private async healthCheck(): Promise<boolean> {
-		return new Promise((resolve) => {
-        const net = require('net');
-        const socket = new net.Socket();
-        socket.setTimeout(5000);
-        
-        socket.on('connect', () => {
-            socket.destroy();
-            resolve(true);
-        });
-        
-        socket.on('timeout', () => {
-            socket.destroy();
-            resolve(false);
-        });
-        
-        socket.on('error', () => {
-            resolve(false);
-        });
-        
-        socket.connect(this.port, 'localhost');
-    });
+		// Try multiple potential endpoints to check if the server is responding
+		const endpoints = ['/health', '/', '/docs', 'status'];
+		
+		for (const endpoint of endpoints) {
+			try {
+				const isHealthy = await this.checkEndpoint(`${this.serverUrl}${endpoint}`);
+				if (isHealthy) {
+					return true;
+				}
+			} catch {
+				// Continue to next endpoint
+			}
+		}
+		return false;
 	}
 
+	private async checkEndpoint(url: string): Promise<boolean> {
+		return new Promise((resolve) => {
+			const req = http.get(url, { timeout: 3000 }, (res) => {
+				// Any response (even 404) means the server is running
+				// We just want to know if something is listening on the port
+				resolve(res.statusCode !== undefined && res.statusCode < 500);
+			});
+
+			req.on('error', () => {
+				resolve(false);
+			});
+
+			req.on('timeout', () => {
+				req.destroy();
+				resolve(false);
+			});
+		});
+	}
 
 	async start(): Promise<void> {
 		if (await this.isRunning()) {
+			// console.log('MCP Orchestrator is already running.');
 			return;
 		}
 
@@ -255,9 +268,11 @@ if __name__ == '__main__':
 			throw new Error('MCP Orchestrator not installed. Please install it first.');
 		}
 
+		// console.log('Starting MCP Orchestrator process...');
+
 		console.log('Starting MCP Orchestrator process...');
 
-		const orchestratorPath = path.join(this.installPath, 'mcp_orchestrator.py');
+		const orchestratorPath = path.join(this.installPath, 'orchestration\\orchestration.py');
 		const pythonCmd = await this.getPythonCommand();
 		
 		// Start orchestrator as detached process
@@ -388,14 +403,22 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// Register MCP server definition provider
+	const mcpProvider = new OneMCPServerDefinitionProvider(mcpManager);
+	const mcpDisposable = vscode.lm.registerMcpServerDefinitionProvider('onemcp-orchestrator', mcpProvider);
+	console.log('MCP Provider registered with ID: onemcp-orchestrator');
+
 	// Global state to track if server is managed by this instance
 	// Use workspace state instead of global state for better isolation
 	const instanceId = Math.random().toString(36).substring(7);
 	const serverManagerKey = 'mcpOrchestratorManager';
 	const currentManager = context.globalState.get<string>(serverManagerKey);
+
+	// console.log(`Current MCP Orchestrator Manager ID: ${currentManager}`);
 	
 	// Try to become the server manager (only one VS Code instance should manage the orchestrator)
 	if (!currentManager || !(await mcpManager.isRunning())) {
+		console.log("Becoming MCP Orchestrator Manager and starting server");
 		await context.globalState.update(serverManagerKey, instanceId);
 		
 		try {
@@ -410,6 +433,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			});
 			
 			vscode.window.showInformationMessage('OneMCP: Orchestrator initialized and ready to manage MCP servers');
+			// Refresh MCP server definitions after automatic startup
+			mcpProvider.refresh();
 		} catch (error) {
 			vscode.window.showErrorMessage(`Failed to start MCP Orchestrator: ${error}`);
 			await context.globalState.update(serverManagerKey, undefined);
@@ -429,6 +454,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				progress.report({ increment: 100, message: "Installation complete!" });
 			});
 			vscode.window.showInformationMessage('MCP Orchestrator installed successfully');
+			// Refresh MCP server definitions after installation
+			mcpProvider.refresh();
 		} catch (error) {
 			vscode.window.showErrorMessage(`Installation failed: ${error}`);
 		}
@@ -439,6 +466,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			await mcpManager.start();
 			await context.globalState.update(serverManagerKey, instanceId);
 			vscode.window.showInformationMessage('MCP Orchestrator started');
+			// Refresh MCP server definitions after starting
+			mcpProvider.refresh();
 		} catch (error) {
 			vscode.window.showErrorMessage(`Failed to start orchestrator: ${error}`);
 		}
@@ -449,6 +478,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			await mcpManager.stop();
 			await context.globalState.update(serverManagerKey, undefined);
 			vscode.window.showInformationMessage('MCP Orchestrator stopped');
+			// Refresh MCP server definitions after stopping
+			mcpProvider.refresh();
 		} catch (error) {
 			vscode.window.showErrorMessage(`Failed to stop orchestrator: ${error}`);
 		}
@@ -487,7 +518,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const openDashboardCommand = vscode.commands.registerCommand('onemcp.openDashboard', async () => {
 		const isRunning = await mcpManager.isRunning();
 		if (isRunning) {
-			vscode.env.openExternal(vscode.Uri.parse('http://localhost:8080/docs'));
+			vscode.env.openExternal(vscode.Uri.parse('http://localhost:8000/docs'));
 		} else {
 			vscode.window.showWarningMessage('MCP Orchestrator is not running. Start it first.');
 		}
@@ -499,7 +530,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		stopCommand, 
 		statusCommand, 
 		openLogsCommand,
-		openDashboardCommand
+		openDashboardCommand,
+		mcpDisposable
 	);
 
 	// Clean up when extension is deactivated
@@ -511,9 +543,11 @@ export async function activate(context: vscode.ExtensionContext) {
 					await mcpManager.stop();
 					await context.globalState.update(serverManagerKey, undefined);
 				} catch (error) {
-					console.error('Failed to stop MCP Orchestrator during cleanup:', error);
+					// console.error('Failed to stop MCP Orchestrator during cleanup:', error);
 				}
 			}
+			// Dispose the MCP provider
+			mcpProvider.dispose();
 		}
 	});
 }

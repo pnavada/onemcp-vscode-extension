@@ -3,6 +3,26 @@
   "displayName": "OneMCP Orchestrator",
   "description": "A dynamic orchestrator for MCP Servers - manage multiple MCP servers with Docker integration.",
   "version": "0.0.1",
+  "publisher": "pnavada",
+  "author": {
+    "name": "pnavada"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnavada/onemcp-vscode-extension.git"
+  },
+  "homepage": "https://github.com/pnavada/onemcp-vscode-extension",
+  "bugs": {
+    "url": "https://github.com/pnavada/onemcp-vscode-extension/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "orchestrator",
+    "docker",
+    "server-management"
+  ],
   "engines": {
     "vscode": "^1.102.0"
   },
@@ -14,6 +34,12 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "onemcp-orchestrator",
+        "label": "OneMCP Orchestrator"
+      }
+    ],
     "commands": [
       {
         "command": "onemcp.installOrchestrator",
